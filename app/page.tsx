@@ -79,16 +79,20 @@ const sampleSignal = {
   direction: 'BUY',
   confidence: 85,
   entry: 1.0875,
-  stopLoss: 1.0830,
-  takeProfit: 1.0975,
+  stopLoss: 1.0830,           // M5 swing low (tighter stop)
+  takeProfit: 1.0975,         // H4 resistance (target)
   phase: 'accumulation',
   event: 'spring',
+  // M5 precision data
+  m5SwingLow: 1.0825,
+  m5SwingHigh: 1.0890,
+  // Why this is M5 precision
   reasons: [
-    'Wyckoff: Accumulation phase detected',
-    'Spring at support zone 1.0830',
+    'D1: Accumulation phase (direction)',
+    'H4: Confirms accumulation (context)',
+    'M5: Spring at swing low 1.0825 (entry)',
     'Volume below average (not climax)',
-    'Test shows buying pressure',
-    'Up/Down volume ratio: 1.8',
+    'M5 precision stop below swing low',
   ],
   vpaMetrics: {
     volumeRatio: 0.9,
@@ -191,7 +195,7 @@ export default function Dashboard() {
       {/* Chart Section */}
       <div className="card" style={{ marginBottom: '24px' }}>
         <div className="card-header">
-          <span className="card-title">{selectedPair.replace('_', '/')} Price Chart (H1)</span>
+          <span className="card-title">{selectedPair.replace('_', '/')} Price Chart (M5 Precision)</span>
           <div style={{ display: 'flex', gap: '8px' }}>
             <span style={{ 
               padding: '4px 12px', 
@@ -200,27 +204,32 @@ export default function Dashboard() {
               fontSize: '12px',
               fontWeight: '600',
             }}>
-              LIVE
+              M5 PRECISION
             </span>
           </div>
         </div>
         <PriceChart 
           data={chartData}
-          supportLine={signal.stopLoss}
-          resistanceLine={signal.takeProfit}
+          supportLine={signal.m5SwingLow}      // M5 swing low for BUY stop
+          resistanceLine={signal.m5SwingHigh}  // M5 swing high for SELL stop
+          entryPrice={signal.entry}
+          takeProfit={signal.takeProfit}
           currentPrice={signal.entry}
+          signalDirection={signal.direction}
         />
         <div style={{ 
           display: 'flex', 
           justifyContent: 'center', 
-          gap: '24px', 
+          flexWrap: 'wrap',
+          gap: '16px', 
           marginTop: '12px',
           fontSize: '12px',
           color: 'var(--text-muted)'
         }}>
-          <span><span style={{ color: 'var(--accent-green)' }}>━━━</span> Support ({signal.stopLoss})</span>
-          <span><span style={{ color: 'var(--accent-red)' }}>━━━</span> Resistance ({signal.takeProfit})</span>
-          <span><span style={{ color: '#ffd43b' }}>━━━</span> Current ({signal.entry})</span>
+          <span><span style={{ color: 'var(--accent-green)' }}>┄┄┄</span> M5 Swing Low: {signal.m5SwingLow}</span>
+          <span><span style={{ color: '#ffd43b)' }}>━━</span> Entry: {signal.entry}</span>
+          <span><span style={{ color: '#5c7cfa)' }}>··</span> Target: {signal.takeProfit}</span>
+          <span><span style={{ color: 'var(--accent-red)' }}>┄┄┄</span> Stop: {signal.stopLoss}</span>
         </div>
       </div>
 

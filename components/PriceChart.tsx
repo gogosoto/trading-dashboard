@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from 'react';
-import { createChart, ColorType } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi } from 'lightweight-charts';
 
 interface PriceChartProps {
   data: {
@@ -11,19 +11,25 @@ interface PriceChartProps {
     low: number;
     close: number;
   }[];
-  supportLine?: number;
-  resistanceLine?: number;
+  supportLine?: number;      // M5 swing low (stop loss zone)
+  resistanceLine?: number;   // M5 swing high
   currentPrice?: number;
+  entryPrice?: number;       // Entry level
+  takeProfit?: number;       // Target level
+  signalDirection?: string;  // BUY or SELL
 }
 
 export default function PriceChart({ 
   data, 
   supportLine, 
   resistanceLine, 
-  currentPrice 
+  currentPrice,
+  entryPrice,
+  takeProfit,
+  signalDirection
 }: PriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
+  const chartRef = useRef<IChartApi | null>(null);
 
   useEffect(() => {
     if (!chartContainerRef.current || !data.length) return;
@@ -74,7 +80,7 @@ export default function PriceChart({
 
     candlestickSeries.setData(candleData);
 
-    // Add support line
+    // M5 Swing Low (Stop Loss for BUY) - Green dashed
     if (supportLine) {
       chart.addLineSeries({
         color: '#00d4aa',
@@ -87,7 +93,7 @@ export default function PriceChart({
       ]);
     }
 
-    // Add resistance line
+    // M5 Swing High (Stop Loss for SELL) - Red dashed
     if (resistanceLine) {
       chart.addLineSeries({
         color: '#ff4757',
@@ -100,11 +106,38 @@ export default function PriceChart({
       ]);
     }
 
-    // Add current price line
-    if (currentPrice) {
+    // Entry Price - Yellow solid
+    if (entryPrice) {
       chart.addLineSeries({
         color: '#ffd43b',
         lineWidth: 2,
+        lineStyle: 0, // solid
+        priceLineVisible: false,
+      }).setData([
+        { time: data[0].time as any, value: entryPrice },
+        { time: data[data.length - 1].time as any, value: entryPrice },
+      ]);
+    }
+
+    // Take Profit - Blue dotted
+    if (takeProfit) {
+      chart.addLineSeries({
+        color: '#5c7cfa',
+        lineWidth: 2,
+        lineStyle: 3, // dotted
+        priceLineVisible: false,
+      }).setData([
+        { time: data[0].time as any, value: takeProfit },
+        { time: data[data.length - 1].time as any, value: takeProfit },
+      ]);
+    }
+
+    // Current Price
+    if (currentPrice && currentPrice !== entryPrice) {
+      chart.addLineSeries({
+        color: '#ffffff',
+        lineWidth: 1,
+        lineStyle: 3, // dotted
         priceLineVisible: false,
       }).setData([
         { time: data[0].time as any, value: currentPrice },
@@ -132,7 +165,7 @@ export default function PriceChart({
         chartRef.current.remove();
       }
     };
-  }, [data, supportLine, resistanceLine, currentPrice]);
+  }, [data, supportLine, resistanceLine, currentPrice, entryPrice, takeProfit]);
 
   return (
     <div 
