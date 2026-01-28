@@ -1,6 +1,38 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import PriceChart from '../../components/PriceChart';
+
+// Generate sample candlestick data
+function generateSampleData() {
+  const data = [];
+  let price = 1.0850;
+  const now = new Date();
+  
+  for (let i = 100; i >= 0; i--) {
+    const date = new Date(now);
+    date.setHours(date.getHours() - i);
+    
+    const volatility = 0.002;
+    const change = (Math.random() - 0.5) * volatility;
+    const open = price;
+    const close = price + change;
+    const high = Math.max(open, close) + Math.random() * volatility * 0.5;
+    const low = Math.min(open, close) - Math.random() * volatility * 0.5;
+    
+    data.push({
+      time: date.toISOString().split('T')[0] + ' ' + date.getHours().toString().padStart(2, '0') + ':00',
+      open: parseFloat(open.toFixed(5)),
+      high: parseFloat(high.toFixed(5)),
+      low: parseFloat(low.toFixed(5)),
+      close: parseFloat(close.toFixed(5)),
+    });
+    
+    price = close;
+  }
+  
+  return data;
+}
 
 // Sample data - use string dates instead of Date objects
 const sampleTrades = [
@@ -76,9 +108,11 @@ function formatDate(dateStr: string) {
 export default function Dashboard() {
   const [selectedPair, setSelectedPair] = useState('EUR_USD');
   const [mounted, setMounted] = useState(false);
+  const [chartData, setChartData] = useState<any[]>([]);
 
   useEffect(() => {
     setMounted(true);
+    setChartData(generateSampleData());
   }, []);
 
   const trades = sampleTrades;
@@ -152,6 +186,42 @@ export default function Dashboard() {
             {pair.replace('_', '/')}
           </button>
         ))}
+      </div>
+
+      {/* Chart Section */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div className="card-header">
+          <span className="card-title">{selectedPair.replace('_', '/')} Price Chart (H1)</span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <span style={{ 
+              padding: '4px 12px', 
+              background: 'var(--accent-green)', 
+              borderRadius: '4px',
+              fontSize: '12px',
+              fontWeight: '600',
+            }}>
+              LIVE
+            </span>
+          </div>
+        </div>
+        <PriceChart 
+          data={chartData}
+          supportLine={signal.stopLoss}
+          resistanceLine={signal.takeProfit}
+          currentPrice={signal.entry}
+        />
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          gap: '24px', 
+          marginTop: '12px',
+          fontSize: '12px',
+          color: 'var(--text-muted)'
+        }}>
+          <span><span style={{ color: 'var(--accent-green)' }}>━━━</span> Support ({signal.stopLoss})</span>
+          <span><span style={{ color: 'var(--accent-red)' }}>━━━</span> Resistance ({signal.takeProfit})</span>
+          <span><span style={{ color: '#ffd43b' }}>━━━</span> Current ({signal.entry})</span>
+        </div>
       </div>
 
       {/* Main Grid */}
