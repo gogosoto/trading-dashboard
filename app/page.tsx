@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import PriceChart from '../../components/PriceChart';
+import PriceChart from '../components/PriceChart';
 
 // Generate sample candlestick data
 function generateSampleData() {
