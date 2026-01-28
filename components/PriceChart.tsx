@@ -11,12 +11,12 @@ interface PriceChartProps {
     low: number;
     close: number;
   }[];
-  supportLine?: number;      // M5 swing low (stop loss zone)
-  resistanceLine?: number;   // M5 swing high
+  supportLine?: number;
+  resistanceLine?: number;
   currentPrice?: number;
-  entryPrice?: number;       // Entry level
-  takeProfit?: number;       // Target level
-  signalDirection?: string;  // BUY or SELL
+  entryPrice?: number;
+  takeProfit?: number;
+  signalDirection?: string;
 }
 
 export default function PriceChart({ 
@@ -25,128 +25,127 @@ export default function PriceChart({
   resistanceLine, 
   currentPrice,
   entryPrice,
-  takeProfit,
-  signalDirection
+  takeProfit
 }: PriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
   useEffect(() => {
-    if (!chartContainerRef.current || !data.length) return;
+    if (!chartContainerRef.current || !data || data.length === 0) {
+      console.log('Chart: No data or container');
+      return;
+    }
+
+    console.log('Chart: Rendering with', data.length, 'candles');
 
     // Clear previous chart
     if (chartRef.current) {
       chartRef.current.remove();
+      chartRef.current = null;
     }
 
-    // Create chart
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: '#1a1a24' },
-        textColor: '#a0a0b0',
-      },
-      grid: {
-        vertLines: { color: '#2a2a3a' },
-        horzLines: { color: '#2a2a3a' },
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: 400,
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: false,
-      },
-    });
+    try {
+      // Create chart
+      const chart = createChart(chartContainerRef.current, {
+        layout: {
+          background: { type: ColorType.Solid, color: '#1a1a24' },
+          textColor: '#a0a0b0',
+        },
+        grid: {
+          vertLines: { color: '#2a2a3a' },
+          horzLines: { color: '#2a2a3a' },
+        },
+        width: chartContainerRef.current.clientWidth || 800,
+        height: 400,
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+        },
+      });
 
-    chartRef.current = chart;
+      chartRef.current = chart;
 
-    // Add candlestick series
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#00d4aa',
-      downColor: '#ff4757',
-      borderUpColor: '#00d4aa',
-      borderDownColor: '#ff4757',
-      wickUpColor: '#00d4aa',
-      wickDownColor: '#ff4757',
-    });
+      // Add candlestick series
+      const candlestickSeries = chart.addCandlestickSeries({
+        upColor: '#00d4aa',
+        downColor: '#ff4757',
+        borderUpColor: '#00d4aa',
+        borderDownColor: '#ff4757',
+        wickUpColor: '#00d4aa',
+        wickDownColor: '#ff4757',
+      });
 
-    // Transform data for lightweight-charts
-    const candleData = data.map(d => ({
-      time: d.time as any,
-      open: d.open,
-      high: d.high,
-      low: d.low,
-      close: d.close,
-    }));
+      // Transform data
+      const candleData = data.map(d => ({
+        time: d.time.split(' ')[0] as any, // Use date only
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.close,
+      }));
 
-    candlestickSeries.setData(candleData);
+      console.log('Chart: Setting', candleData.length, 'candles');
+      candlestickSeries.setData(candleData);
 
-    // M5 Swing Low (Stop Loss for BUY) - Green dashed
-    if (supportLine) {
-      chart.addLineSeries({
-        color: '#00d4aa',
-        lineWidth: 2,
-        lineStyle: 2, // dashed
-        priceLineVisible: false,
-      }).setData([
-        { time: data[0].time as any, value: supportLine },
-        { time: data[data.length - 1].time as any, value: supportLine },
-      ]);
+      // Add support line
+      if (supportLine) {
+        chart.addLineSeries({
+          color: '#00d4aa',
+          lineWidth: 2,
+          lineStyle: 2,
+          priceLineVisible: false,
+        }).setData([
+          { time: candleData[0].time, value: supportLine },
+          { time: candleData[candleData.length - 1].time, value: supportLine },
+        ]);
+      }
+
+      // Add resistance line
+      if (resistanceLine) {
+        chart.addLineSeries({
+          color: '#ff4757',
+          lineWidth: 2,
+          lineStyle: 2,
+          priceLineVisible: false,
+        }).setData([
+          { time: candleData[0].time, value: resistanceLine },
+          { time: candleData[candleData.length - 1].time, value: resistanceLine },
+        ]);
+      }
+
+      // Add entry line
+      if (entryPrice) {
+        chart.addLineSeries({
+          color: '#ffd43b',
+          lineWidth: 2,
+          lineStyle: 0,
+          priceLineVisible: false,
+        }).setData([
+          { time: candleData[0].time, value: entryPrice },
+          { time: candleData[candleData.length - 1].time, value: entryPrice },
+        ]);
+      }
+
+      // Add take profit line
+      if (takeProfit) {
+        chart.addLineSeries({
+          color: '#5c7cfa',
+          lineWidth: 2,
+          lineStyle: 3,
+          priceLineVisible: false,
+        }).setData([
+          { time: candleData[0].time, value: takeProfit },
+          { time: candleData[candleData.length - 1].time, value: takeProfit },
+        ]);
+      }
+
+      // Fit content
+      chart.timeScale().fitContent();
+      console.log('Chart: Rendered successfully');
+
+    } catch (error) {
+      console.error('Chart error:', error);
     }
-
-    // M5 Swing High (Stop Loss for SELL) - Red dashed
-    if (resistanceLine) {
-      chart.addLineSeries({
-        color: '#ff4757',
-        lineWidth: 2,
-        lineStyle: 2, // dashed
-        priceLineVisible: false,
-      }).setData([
-        { time: data[0].time as any, value: resistanceLine },
-        { time: data[data.length - 1].time as any, value: resistanceLine },
-      ]);
-    }
-
-    // Entry Price - Yellow solid
-    if (entryPrice) {
-      chart.addLineSeries({
-        color: '#ffd43b',
-        lineWidth: 2,
-        lineStyle: 0, // solid
-        priceLineVisible: false,
-      }).setData([
-        { time: data[0].time as any, value: entryPrice },
-        { time: data[data.length - 1].time as any, value: entryPrice },
-      ]);
-    }
-
-    // Take Profit - Blue dotted
-    if (takeProfit) {
-      chart.addLineSeries({
-        color: '#5c7cfa',
-        lineWidth: 2,
-        lineStyle: 3, // dotted
-        priceLineVisible: false,
-      }).setData([
-        { time: data[0].time as any, value: takeProfit },
-        { time: data[data.length - 1].time as any, value: takeProfit },
-      ]);
-    }
-
-    // Current Price
-    if (currentPrice && currentPrice !== entryPrice) {
-      chart.addLineSeries({
-        color: '#ffffff',
-        lineWidth: 1,
-        lineStyle: 3, // dotted
-        priceLineVisible: false,
-      }).setData([
-        { time: data[0].time as any, value: currentPrice },
-        { time: data[data.length - 1].time as any, value: currentPrice },
-      ]);
-    }
-
-    // Fit content
-    chart.timeScale().fitContent();
 
     // Handle resize
     const handleResize = () => {
@@ -163,6 +162,7 @@ export default function PriceChart({
       window.removeEventListener('resize', handleResize);
       if (chartRef.current) {
         chartRef.current.remove();
+        chartRef.current = null;
       }
     };
   }, [data, supportLine, resistanceLine, currentPrice, entryPrice, takeProfit]);
@@ -175,6 +175,7 @@ export default function PriceChart({
         height: '400px',
         borderRadius: '12px',
         overflow: 'hidden',
+        background: '#1a1a24',
       }} 
     />
   );
