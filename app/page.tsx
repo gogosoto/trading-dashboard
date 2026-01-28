@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-// Sample data for demonstration
+// Sample data - use string dates instead of Date objects
 const sampleTrades = [
   {
     id: 1,
@@ -13,7 +13,7 @@ const sampleTrades = [
     pnl: 700,
     pnlPercent: 0.64,
     reason: 'Spring in accumulation, volume confirms',
-    timestamp: new Date('2026-01-28 10:30'),
+    timestamp: '2026-01-28T10:30:00Z',
     phase: 'accumulation'
   },
   {
@@ -25,7 +25,7 @@ const sampleTrades = [
     pnl: 400,
     pnlPercent: 0.31,
     reason: 'Upthrust in distribution',
-    timestamp: new Date('2026-01-27 15:45'),
+    timestamp: '2026-01-27T15:45:00Z',
     phase: 'distribution'
   },
   {
@@ -37,7 +37,7 @@ const sampleTrades = [
     pnl: -160,
     pnlPercent: -0.10,
     reason: 'False spring, stopped out',
-    timestamp: new Date('2026-01-26 09:15'),
+    timestamp: '2026-01-26T09:15:00Z',
     phase: 'markdown'
   },
 ];
@@ -65,16 +65,42 @@ const sampleSignal = {
   },
 };
 
+function formatDate(dateStr: string) {
+  try {
+    return new Date(dateStr).toLocaleString();
+  } catch {
+    return dateStr;
+  }
+}
+
 export default function Dashboard() {
   const [selectedPair, setSelectedPair] = useState('EUR_USD');
-  const [trades] = useState(sampleTrades);
-  const [signal] = useState(sampleSignal);
+  const [mounted, setMounted] = useState(false);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const trades = sampleTrades;
+  const signal = sampleSignal;
   const accountBalance = 10250;
   const totalTrades = trades.length;
   const winningTrades = trades.filter(t => t.pnl > 0).length;
-  const winRate = ((winningTrades / totalTrades) * 100).toFixed(0);
+  const winRate = totalTrades > 0 ? ((winningTrades / totalTrades) * 100).toFixed(0) : '0';
   const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+
+  if (!mounted) {
+    return (
+      <div className="dashboard" style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        minHeight: '100vh' 
+      }}>
+        <p style={{ color: 'var(--text-muted)' }}>Loading dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard">
@@ -94,7 +120,7 @@ export default function Dashboard() {
               textDecoration: 'none',
             }}
           >
-            ⚙️ Settings
+            Settings
           </a>
         </div>
         <div className="header-stats">
@@ -107,7 +133,7 @@ export default function Dashboard() {
             <div className="stat-value">{winRate}%</div>
           </div>
           <div className="stat">
-            <div className="stat-label">Total P&L</div>
+            <div className="stat-label">Total P and L</div>
             <div className={`stat-value ${totalPnl >= 0 ? 'positive' : 'negative'}`}>
               {totalPnl >= 0 ? '+' : ''}${totalPnl}
             </div>
@@ -135,7 +161,7 @@ export default function Dashboard() {
           <div className="card-header">
             <span className="card-title">Current Signal</span>
             <span className={`signal-direction ${signal.direction.toLowerCase()}`}>
-              {signal.direction === 'BUY' ? '↑' : '↓'} {signal.direction}
+              {signal.direction === 'BUY' ? 'uparrow' : 'downarrow'} {signal.direction}
             </span>
           </div>
           <div className="card-value">{signal.entry}</div>
@@ -165,7 +191,7 @@ export default function Dashboard() {
           </div>
           <div className="card-value">{signal.entry}</div>
           <div className="card-subtitle">
-            EUR/USD • H1 Timeframe
+            EUR/USD H1 Timeframe
           </div>
           <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={{ padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
@@ -187,7 +213,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div style={{ padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Spread %</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Spread Percent</div>
               <div style={{ fontWeight: '600' }}>
                 {signal.vpaMetrics.spreadPct}%
               </div>
@@ -201,7 +227,7 @@ export default function Dashboard() {
             <span className="card-title">Signal Reasoning</span>
           </div>
           <div className="reasoning-list">
-            {signal.reasons.map((reason, i) => (
+            {signal.reasons.map((reason: string, i: number) => (
               <div key={i} className="reasoning-item">
                 <div className="reasoning-icon vpa">V</div>
                 <div className="reasoning-text">{reason}</div>
@@ -219,17 +245,17 @@ export default function Dashboard() {
             </span>
           </div>
           <div className="trade-list">
-            {trades.map(trade => (
+            {trades.map((trade: typeof trades[0]) => (
               <div key={trade.id} className="trade-item">
                 <div className="trade-info">
                   <div className="trade-pair">
-                    {trade.pair.replace('_', '/')} • 
+                    {trade.pair.replace('_', '/')} 
                     <span className={`signal-direction ${trade.direction.toLowerCase()}`} style={{ marginLeft: '8px', fontSize: '11px', padding: '2px 8px' }}>
                       {trade.direction}
                     </span>
                   </div>
                   <div className="trade-time">
-                    {trade.timestamp.toLocaleString()} • {trade.phase}
+                    {formatDate(trade.timestamp)} {trade.phase}
                   </div>
                   <div className="trade-reason">{trade.reason}</div>
                 </div>
@@ -256,7 +282,7 @@ export default function Dashboard() {
         borderTop: '1px solid var(--border-color)',
         marginTop: '32px'
       }}>
-        <p>Wyckoff + VPA Trading System • Pure Price Action + Volume</p>
+        <p>Wyckoff + VPA Trading System Pure Price Action + Volume</p>
         <p style={{ marginTop: '8px' }}>
           Always use paper trading first. Past performance does not guarantee future results.
         </p>
