@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-// API endpoint - update after deploying worker
+// API endpoint
 const API_URL = 'https://trading-api.wnrpv6pdgc.workers.dev';
 
-// Common forex pairs
+// Forex pairs
 const FOREX_PAIRS = [
   'EUR_USD', 'GBP_USD', 'USD_JPY', 'USD_CHF', 'AUD_USD',
   'USD_CAD', 'NZD_USD', 'EUR_GBP', 'EUR_JPY', 'GBP_JPY',
@@ -14,7 +14,7 @@ const FOREX_PAIRS = [
   'GBP_AUD', 'GBP_CAD', 'NZD_JPY', 'EUR_SEK', 'USD_SEK'
 ];
 
-interface PriceData {
+interface Candle {
   time: string;
   open: number;
   high: number;
@@ -23,42 +23,46 @@ interface PriceData {
   volume?: number;
 }
 
-// Generate sample candlestick data
-function generateSampleData(pair: string): PriceData[] {
-  const data: PriceData[] = [];
-  let price = 1.0;
-  if (pair.includes('JPY')) price = 150;
-  if (pair === 'USD_CHF') price = 0.90;
-  if (pair === 'GBP_USD') price = 1.27;
-  
-  const now = new Date();
-  
-  for (let i = 100; i >= 0; i--) {
-    const date = new Date(now);
-    date.setMinutes(date.getMinutes() - i * 5);
-    
-    const volatility = pair.includes('JPY') ? 0.3 : 0.0015;
-    const change = (Math.random() - 0.5) * volatility;
-    const open = price;
-    const close = price + change;
-    const high = Math.max(open, close) + Math.random() * volatility * 0.2;
-    const low = Math.min(open, close) - Math.random() * volatility * 0.2;
-    
-    data.push({
-      time: date.toISOString(),
-      open: parseFloat(open.toFixed(pair.includes('JPY') ? 3 : 5)),
-      high: parseFloat(high.toFixed(pair.includes('JPY') ? 3 : 5)),
-      low: parseFloat(low.toFixed(pair.includes('JPY') ? 3 : 5)),
-      close: parseFloat(close.toFixed(pair.includes('JPY') ? 3 : 5)),
-      volume: Math.floor(Math.random() * 1000) + 100
-    });
-    price = close;
-  }
-  return data;
+interface TradeSignal {
+  direction: string;
+  entry: number;
+  stopLoss: number;
+  takeProfit: number;
+  confidence: number;
+  phase: string;
+  event: string;
+  reasons: string[];
+  riskReward: number;
 }
 
-// Fetch real data from API
-async function fetchCandles(pair: string, count: number = 100): Promise<PriceData[]> {
+interface Position {
+  id: string;
+  pair: string;
+  direction: string;
+  entry: number;
+  sl: number;
+  tp: number;
+  current: number;
+  pnl: number;
+  pnlPercent: number;
+  opened: string;
+}
+
+interface Trade {
+  id: string;
+  pair: string;
+  direction: string;
+  entry: number;
+  exit: number;
+  pnl: number;
+  pnlPercent: number;
+  reason: string;
+  opened: string;
+  closed: string;
+  outcome: 'WIN' | 'LOSS' | 'BREAKEVEN';
+}
+
+async function fetchCandles(pair: string, count: number = 100): Promise<Candle[]> {
   try {
     const response = await fetch(`${API_URL}/api/candles/${pair}?timeframe=M5&count=${count}`);
     const data = await response.json();
@@ -69,31 +73,169 @@ async function fetchCandles(pair: string, count: number = 100): Promise<PriceDat
   }
 }
 
-// Sample trades
-const sampleTrades = [
-  { id: 1, pair: 'EUR_USD', direction: 'BUY', entry: 1.0850, exit: 1.0920, pnl: 700, pnlPercent: 0.64, reason: 'Spring in accumulation', timestamp: '2026-01-28T10:30:00Z', phase: 'accumulation' },
-  { id: 2, pair: 'GBP_USD', direction: 'SELL', entry: 1.2720, exit: 1.2680, pnl: 400, pnlPercent: 0.31, reason: 'Upthrust in distribution', timestamp: '2026-01-27T15:45:00Z', phase: 'distribution' },
-  { id: 3, pair: 'USD_JPY', direction: 'BUY', entry: 156.80, exit: 155.20, pnl: -160, pnlPercent: -0.10, reason: 'False spring', timestamp: '2026-01-26T09:15:00Z', phase: 'markdown' },
-];
-
-function formatDate(dateStr: string) {
-  try { return new Date(dateStr).toLocaleString(); }
-  catch { return dateStr; }
+function generateSampleData(pair: string): Candle[] {
+  const data: Candle[] = [];
+  let price = getBasePrice(pair);
+  const now = new Date();
+  for (let i = 100; i >= 0; i--) {
+    const time = new Date(now);
+    time.setMinutes(time.getMinutes() - i * 5);
+    const volatility = pair.includes('JPY') ? 0.3 : 0.0015;
+    const change = (Math.random() - 0.5) * volatility;
+    const open = price;
+    const close = price + change;
+    const high = Math.max(open, close) + Math.random() * volatility * 0.2;
+    const low = Math.min(open, close) - Math.random() * volatility * 0.2;
+    data.push({
+      time: time.toISOString(),
+      open: parseFloat(open.toFixed(getDecimals(pair))),
+      high: parseFloat(high.toFixed(getDecimals(pair))),
+      low: parseFloat(low.toFixed(getDecimals(pair))),
+      close: parseFloat(close.toFixed(getDecimals(pair))),
+      volume: Math.floor(Math.random() * 1000) + 100
+    });
+    price = close;
+  }
+  return data;
 }
 
-// Canvas chart component
-function CandleChart({ data, supportLine, entryPrice, takeProfit }: {
-  data: PriceData[];
-  supportLine?: number;
-  entryPrice?: number;
-  takeProfit?: number;
-}) {
+function getBasePrice(pair: string): number {
+  const prices: Record<string, number> = {
+    'EUR_USD': 1.0850, 'GBP_USD': 1.2700, 'USD_JPY': 156.50,
+    'USD_CHF': 0.8850, 'AUD_USD': 0.6550, 'USD_CAD': 1.3650,
+    'NZD_USD': 0.6050, 'EUR_GBP': 0.8550, 'EUR_JPY': 169.80,
+    'GBP_JPY': 198.80, 'EUR_CHF': 0.9650, 'AUD_JPY': 102.50,
+    'CAD_JPY': 114.60, 'CHF_JPY': 176.80, 'EUR_AUD': 1.6560,
+    'EUR_CAD': 1.4810, 'GBP_CHF': 1.1240, 'AUD_CAD': 0.8940,
+    'AUD_NZD': 1.0820, 'EUR_NZD': 1.7920, 'GBP_AUD': 1.9380,
+    'GBP_CAD': 1.7330, 'NZD_JPY': 94.70, 'EUR_SEK': 11.45,
+    'USD_SEK': 10.55
+  };
+  return prices[pair] || 1.0;
+}
+
+function getDecimals(pair: string): number {
+  return pair.includes('JPY') ? 3 : 5;
+}
+
+function calculateSignal(pair: string, candles: Candle[]): TradeSignal | null {
+  if (candles.length < 50) return null;
+  const recent = candles.slice(-50);
+  const current = candles[candles.length - 1];
+  const prev = candles[candles.length - 2];
+  
+  const volumes = recent.map(c => c.volume || 0);
+  const avgVolume = volumes.reduce((a, b) => a + b, 0) / volumes.length;
+  const currentVolume = current.volume || 0;
+  const volumeRatio = currentVolume / avgVolume;
+  
+  const ranges = recent.map(c => c.high - c.low);
+  const avgRange = ranges.reduce((a, b) => a + b, 0) / ranges.length;
+  
+  const support = Math.min(...recent.map(c => c.low));
+  const resistance = Math.max(...recent.map(c => c.high));
+  const compression = 1 - (avgRange * 50 / (resistance - support + 0.0001));
+  
+  const upVolume = recent.filter(c => c.close > c.open).reduce((a, b) => a + (b.volume || 0), 0);
+  const downVolume = recent.filter(c => c.close < c.open).reduce((a, b) => a + (b.volume || 0), 0);
+  const volumeTrend = (upVolume - downVolume) / (upVolume + downVolume + 1);
+  
+  let phase = 'RANGE';
+  let phaseConfidence = 0.5;
+  const pricePosition = (current.close - support) / (resistance - support + 0.0001);
+  
+  if (compression > 0.6 && volumeTrend < -0.2 && pricePosition < 0.4) {
+    phase = 'ACCUMULATION';
+    phaseConfidence = 0.85;
+  } else if (compression > 0.6 && volumeTrend > 0.2 && pricePosition > 0.6) {
+    phase = 'DISTRIBUTION';
+    phaseConfidence = 0.85;
+  } else if (volumeTrend > 0.3 && pricePosition > 0.5) {
+    phase = 'MARKUP';
+    phaseConfidence = 0.75;
+  } else if (volumeTrend < -0.3 && pricePosition < 0.5) {
+    phase = 'MARKDOWN';
+    phaseConfidence = 0.75;
+  }
+  
+  let event = 'NONE';
+  let eventConfidence = 0;
+  const swingLow = Math.min(...recent.slice(-10).map(c => c.low));
+  const swingHigh = Math.max(...recent.slice(-10).map(c => c.high));
+  
+  if (current.low < support && current.close > support * 0.999) {
+    event = 'SPRING';
+    eventConfidence = Math.max(0.5, 1 - volumeRatio / 3);
+  } else if (current.high > resistance && current.close < resistance * 1.001) {
+    event = 'UPTHRUST';
+    eventConfidence = Math.max(0.5, 1 - volumeRatio / 3);
+  } else if (current.low <= swingLow * 1.002 && current.close > current.open) {
+    event = 'TEST_SUPPORT';
+    eventConfidence = 0.7;
+  } else if (current.high >= swingHigh * 0.998 && current.close < current.open) {
+    event = 'TEST_RESISTANCE';
+    eventConfidence = 0.7;
+  }
+  
+  let direction = 'HOLD';
+  let reasons: string[] = [];
+  let confidence = 0;
+  let entry = current.close;
+  let sl = 0;
+  let tp = 0;
+  const riskPerTrade = 0.01;
+  const riskReward = 2.0;
+  const atrMultiplier = 1.5;
+  
+  const trs = recent.slice(-14).map(c => Math.max(c.high - c.low, Math.abs(c.high - prev.close), Math.abs(c.low - prev.close)));
+  const atr = trs.reduce((a, b) => a + b, 0) / trs.length;
+  
+  if (phase === 'ACCUMULATION' && event === 'SPRING' && volumeRatio < 1.5) {
+    direction = 'BUY';
+    const stopDistance = atr * atrMultiplier;
+    sl = support;
+    tp = current.close + stopDistance * riskReward;
+    reasons = [
+      `D1: Accumulation phase (${(phaseConfidence * 100).toFixed(0)}%)`,
+      `M5: Spring at support ${support.toFixed(5)}`,
+      `Volume: ${volumeRatio.toFixed(1)}x average (healthy)`,
+      `Risk:Reward 1:${riskReward} (1% risk)`,
+      `Stop: ${sl.toFixed(5)} (${(stopDistance / current.close * 10000).toFixed(1)} pips)`,
+      `Target: ${tp.toFixed(5)}`
+    ];
+    confidence = Math.min((phaseConfidence * 0.3 + eventConfidence * 0.4 + (2 - volumeRatio) * 0.3), 1);
+  } else if (phase === 'DISTRIBUTION' && event === 'UPTHRUST' && volumeRatio < 1.5) {
+    direction = 'SELL';
+    const stopDistance = atr * atrMultiplier;
+    sl = resistance;
+    tp = current.close - stopDistance * riskReward;
+    reasons = [
+      `D1: Distribution phase (${(phaseConfidence * 100).toFixed(0)}%)`,
+      `M5: Upthrust at resistance ${resistance.toFixed(5)}`,
+      `Volume: ${volumeRatio.toFixed(1)}x average (healthy)`,
+      `Risk:Reward 1:${riskReward} (1% risk)`,
+      `Stop: ${sl.toFixed(5)} (${(stopDistance / current.close * 10000).toFixed(1)} pips)`,
+      `Target: ${tp.toFixed(5)}`
+    ];
+    confidence = Math.min((phaseConfidence * 0.3 + eventConfidence * 0.4 + (2 - volumeRatio) * 0.3), 1);
+  } else {
+    reasons = [
+      `Phase: ${phase}`,
+      `Event: ${event}`,
+      `Volume: ${volumeRatio.toFixed(1)}x average`,
+      `Waiting for alignment...`
+    ];
+  }
+  
+  return { direction, entry, stopLoss: sl, takeProfit: tp, confidence, phase, event, reasons, riskReward };
+}
+
+function Chart({ data, signal }: { data: Candle[]; signal: TradeSignal | null }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || data.length === 0) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -112,7 +254,7 @@ function CandleChart({ data, supportLine, entryPrice, takeProfit }: {
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
     const priceRange = maxPrice - minPrice || 1;
-    const padding = 60;
+    const padding = 70;
     const chartHeight = 400 - padding * 2;
     const chartWidth = rect.width - padding * 2;
 
@@ -123,7 +265,6 @@ function CandleChart({ data, supportLine, entryPrice, takeProfit }: {
       return padding + (index / (data.length - 1)) * chartWidth;
     }
 
-    // Grid
     ctx.strokeStyle = '#2a2a3a';
     ctx.lineWidth = 1;
     for (let i = 0; i <= 5; i++) {
@@ -139,56 +280,60 @@ function CandleChart({ data, supportLine, entryPrice, takeProfit }: {
       ctx.fillText(price.toFixed(5), padding - 8, y + 4);
     }
 
-    // Support line
-    if (supportLine) {
-      const y = priceToY(supportLine);
-      ctx.strokeStyle = '#00d4aa';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath();
-      ctx.moveTo(padding, y);
-      ctx.lineTo(rect.width - padding, y);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = '#00d4aa';
-      ctx.font = '11px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(`SL: ${supportLine}`, rect.width - padding + 5, y + 4);
-    }
+    const support = Math.min(...data.slice(-50).map(c => c.low));
+    const resistance = Math.max(...data.slice(-50).map(c => c.high));
 
-    // Entry line
-    if (entryPrice) {
-      const y = priceToY(entryPrice);
+    ctx.strokeStyle = '#00d4aa';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(padding, priceToY(support));
+    ctx.lineTo(rect.width - padding, priceToY(support));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#00d4aa';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Support: ${support.toFixed(5)}`, rect.width - padding + 5, priceToY(support) + 4);
+
+    ctx.strokeStyle = '#ff4757';
+    ctx.beginPath();
+    ctx.moveTo(padding, priceToY(resistance));
+    ctx.lineTo(rect.width - padding, priceToY(resistance));
+    ctx.stroke();
+    ctx.fillStyle = '#ff4757';
+    ctx.fillText(`Resistance: ${resistance.toFixed(5)}`, rect.width - padding + 5, priceToY(resistance) + 4);
+
+    if (signal && signal.direction !== 'HOLD') {
       ctx.strokeStyle = '#ffd43b';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(padding, y);
-      ctx.lineTo(rect.width - padding, y);
+      ctx.moveTo(padding, priceToY(signal.entry));
+      ctx.lineTo(rect.width - padding, priceToY(signal.entry));
       ctx.stroke();
       ctx.fillStyle = '#ffd43b';
-      ctx.font = '11px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(`Entry: ${entryPrice}`, rect.width - padding + 5, y + 4);
-    }
+      ctx.fillText(`Entry: ${signal.entry.toFixed(5)}`, rect.width - padding + 5, priceToY(signal.entry) + 4);
 
-    // Take profit
-    if (takeProfit) {
-      const y = priceToY(takeProfit);
-      ctx.strokeStyle = '#5c7cfa';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ff4757';
       ctx.setLineDash([3, 3]);
       ctx.beginPath();
-      ctx.moveTo(padding, y);
-      ctx.lineTo(rect.width - padding, y);
+      ctx.moveTo(padding, priceToY(signal.stopLoss));
+      ctx.lineTo(rect.width - padding, priceToY(signal.stopLoss));
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = '#5c7cfa';
-      ctx.font = '11px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(`TP: ${takeProfit}`, rect.width - padding + 5, y + 4);
+      ctx.fillStyle = '#ff4757';
+      ctx.fillText(`SL: ${signal.stopLoss.toFixed(5)}`, rect.width - padding + 5, priceToY(signal.stopLoss) + 4);
+
+      ctx.strokeStyle = '#00d4aa';
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(padding, priceToY(signal.takeProfit));
+      ctx.lineTo(rect.width - padding, priceToY(signal.takeProfit));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#00d4aa';
+      ctx.fillText(`TP: ${signal.takeProfit.toFixed(5)}`, rect.width - padding + 5, priceToY(signal.takeProfit) + 4);
     }
 
-    // Candlesticks
     const candleWidth = Math.max(3, (chartWidth / data.length) * 0.7);
     data.forEach((candle, i) => {
       const x = timeToX(i);
@@ -202,70 +347,93 @@ function CandleChart({ data, supportLine, entryPrice, takeProfit }: {
       ctx.strokeStyle = color;
       ctx.fillStyle = color;
       ctx.lineWidth = 1;
-      
       ctx.beginPath();
       ctx.moveTo(x, yHigh);
       ctx.lineTo(x, yLow);
       ctx.stroke();
-      
       ctx.fillRect(x - candleWidth / 2, Math.min(yOpen, yClose), candleWidth, Math.abs(yClose - yOpen) || 1);
     });
 
-  }, [data, supportLine, entryPrice, takeProfit]);
+  }, [data, signal]);
 
-  return (
-    <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '400px' }} />
-  );
+  return <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '400px' }} />;
 }
 
 export default function Dashboard() {
   const [selectedPair, setSelectedPair] = useState('EUR_USD');
-  const [chartData, setChartData] = useState<PriceData[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const [chartData, setChartData] = useState<Candle[]>([]);
+  const [signal, setSignal] = useState<TradeSignal | null>(null);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [tradeHistory, setTradeHistory] = useState<Trade[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<string>('');
+  const [totalPnl, setTotalPnl] = useState(0);
 
-  const filteredPairs = FOREX_PAIRS.filter(pair =>
-    pair.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPairs = FOREX_PAIRS.filter(p => p.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // Load chart data when pair changes
   const loadData = async (pair: string) => {
     setLoading(true);
     const data = await fetchCandles(pair);
     setChartData(data);
-    setLastUpdate(new Date().toLocaleTimeString());
+    setSignal(calculateSignal(pair, data));
     setLoading(false);
   };
 
-  useEffect(() => {
-    if (mounted) loadData(selectedPair);
-  }, [selectedPair, mounted]);
+  useEffect(() => { loadData(selectedPair); }, [selectedPair]);
 
   useEffect(() => {
-    loadData('EUR_USD');
-    setMounted(true);
-  }, []);
+    if (positions.length > 0 && chartData.length > 0) {
+      const updated = positions.map(p => {
+        const current = chartData[chartData.length - 1].close;
+        const pnl = p.direction === 'BUY' 
+          ? (current - p.entry) / p.entry * 10000 * 1000
+          : (p.entry - current) / p.entry * 10000 * 1000;
+        return { ...p, current, pnl, pnlPercent: pnl / (p.entry * 1000) * 100 };
+      });
+      setPositions(updated);
+    }
+  }, [chartData, positions.length]);
 
-  const trades = sampleTrades;
-  const accountBalance = 10250;
-  const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
-  const winRate = '67';
+  useEffect(() => {
+    const closedPnl = tradeHistory.reduce((sum, t) => sum + t.pnl, 0);
+    const openPnl = positions.reduce((sum, p) => sum + p.pnl, 0);
+    setTotalPnl(closedPnl + openPnl);
+  }, [tradeHistory, positions]);
 
-  const currentSignal = {
-    pair: selectedPair,
-    direction: 'BUY',
-    confidence: 85,
-    entry: chartData.length > 0 ? chartData[chartData.length - 1].close : 1.0850,
-    stopLoss: 1.0830,
-    takeProfit: 1.0975,
-    phase: 'accumulation',
-    m5SwingLow: 1.0825,
+  const openPosition = () => {
+    if (!signal || signal.direction === 'HOLD') return;
+    const id = `POS-${Date.now()}`;
+    const newPosition: Position = {
+      id, pair: selectedPair, direction: signal.direction, entry: signal.entry,
+      sl: signal.stopLoss, tp: signal.takeProfit, current: signal.entry,
+      pnl: 0, pnlPercent: 0, opened: new Date().toISOString()
+    };
+    setPositions([...positions, newPosition]);
   };
 
-  if (!mounted) {
+  const closePosition = (id: string) => {
+    const position = positions.find(p => p.id === id);
+    if (!position || chartData.length === 0) return;
+    const exit = chartData[chartData.length - 1].close;
+    const pnl = position.direction === 'BUY'
+      ? (exit - position.entry) / position.entry * 10000 * 1000
+      : (position.entry - exit) / position.entry * 10000 * 1000;
+    const trade: Trade = {
+      id: `TRD-${Date.now()}`, pair: position.pair, direction: position.direction,
+      entry: position.entry, exit, pnl, pnlPercent: pnl / (position.entry * 1000) * 100,
+      reason: signal?.reasons[0] || 'Trade closed', opened: position.opened,
+      closed: new Date().toISOString(), outcome: pnl > 0 ? 'WIN' : pnl < 0 ? 'LOSS' : 'BREAKEVEN'
+    };
+    setTradeHistory([trade, ...tradeHistory]);
+    setPositions(positions.filter(p => p.id !== id));
+  };
+
+  const winRate = tradeHistory.length > 0
+    ? ((tradeHistory.filter(t => t.outcome === 'WIN').length / tradeHistory.length) * 100).toFixed(0)
+    : '0';
+
+  if (chartData.length === 0) {
     return <div className="dashboard" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
       <p style={{ color: 'var(--text-muted)' }}>Loading...</p>
     </div>;
@@ -273,39 +441,31 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
-      {/* Header */}
       <header className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <h1>Wyckoff + VPA</h1>
-          <a href="/settings" style={{ padding: '8px 16px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-secondary)', fontSize: '13px', textDecoration: 'none' }}>
-            Settings
-          </a>
+          <h1>Wyckoff + VPA Paper Trading</h1>
+          <a href="/settings" style={{ padding: '8px 16px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-secondary)', fontSize: '13px', textDecoration: 'none' }}>Settings</a>
         </div>
         <div className="header-stats">
-          <div className="stat">
-            <div className="stat-label">Account</div>
-            <div className="stat-value">${accountBalance.toLocaleString()}</div>
-          </div>
           <div className="stat">
             <div className="stat-label">Win Rate</div>
             <div className="stat-value">{winRate}%</div>
           </div>
           <div className="stat">
-            <div className="stat-label">Total P and L</div>
+            <div className="stat-label">Total P/L</div>
             <div className={`stat-value ${totalPnl >= 0 ? 'positive' : 'negative'}`}>
-              {totalPnl >= 0 ? '+' : ''}${totalPnl}
+              {totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(0)}
             </div>
           </div>
         </div>
       </header>
 
-      {/* Search & Dropdown */}
       <div style={{ position: 'relative', marginBottom: '20px' }}>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
           <div style={{ position: 'relative', flex: 1, maxWidth: '300px' }}>
             <input
               type="text"
-              placeholder="Search pairs (e.g., EUR, JPY)..."
+              placeholder="Search pairs..."
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setShowDropdown(true); }}
               onFocus={() => setShowDropdown(true)}
@@ -314,7 +474,6 @@ export default function Dashboard() {
             <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>🔍</span>
           </div>
           {loading && <span style={{ color: 'var(--text-muted)' }}>Loading...</span>}
-          {lastUpdate && <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Updated: {lastUpdate}</span>}
         </div>
 
         {showDropdown && (
@@ -329,11 +488,10 @@ export default function Dashboard() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
           <span style={{ fontSize: '24px', fontWeight: '600' }}>{selectedPair.replace('_', '/')}</span>
-          {chartData.length > 0 && (
-            <span style={{ fontSize: '18px', color: chartData[chartData.length - 1].close >= chartData[chartData.length - 1].open ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-              {chartData[chartData.length - 1].close.toFixed(5)}
-            </span>
-          )}
+          <span style={{ fontSize: '18px', color: chartData[chartData.length - 1].close >= chartData[chartData.length - 1].open ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+            {chartData[chartData.length - 1].close.toFixed(5)}
+          </span>
+          <span style={{ padding: '4px 12px', background: 'var(--accent-green)', borderRadius: '4px', fontSize: '12px', fontWeight: '600' }}>PAPER TRADING</span>
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -345,60 +503,120 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Chart */}
       <div className="card" style={{ marginBottom: '24px' }}>
         <div className="card-header">
-          <span className="card-title">{selectedPair.replace('_', '/')} - M5 Timeframe</span>
-          <span style={{ padding: '4px 12px', background: 'var(--accent-green)', borderRadius: '4px', fontSize: '12px', fontWeight: '600' }}>M5 PRECISION</span>
+          <span className="card-title">{selectedPair.replace('_', '/')} - M5 with Wyckoff Analysis</span>
         </div>
-        <CandleChart data={chartData} supportLine={currentSignal.m5SwingLow} entryPrice={currentSignal.entry} takeProfit={currentSignal.takeProfit} />
+        <Chart data={chartData} signal={signal} />
         <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '16px', marginTop: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>
-          <span><span style={{ color: 'var(--accent-green)' }}>┄┄┄</span> M5 Swing Low</span>
+          <span><span style={{ color: 'var(--accent-green)' }}>┄┄┄</span> Support</span>
+          <span><span style={{ color: '#ff4757)' }}>┄┄┄</span> Resistance</span>
           <span><span style={{ color: '#ffd43b)' }}>━━</span> Entry</span>
-          <span><span style={{ color: '#5c7cfa)' }}>··</span> Target</span>
+          <span><span style={{ color: '#ff4757)' }}>--</span> SL</span>
+          <span><span style={{ color: '#00d4aa)' }}>--</span> TP</span>
         </div>
       </div>
 
-      {/* Signal Card */}
-      <div className="grid">
-        <div className={`card signal-card ${currentSignal.direction.toLowerCase()}`}>
+      <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <div className={`card signal-card ${signal?.direction === 'BUY' ? 'buy' : signal?.direction === 'SELL' ? 'sell' : 'neutral'}`}>
           <div className="card-header">
-            <span className="card-title">Current Signal</span>
-            <span className={`signal-direction ${currentSignal.direction.toLowerCase()}`}>{currentSignal.direction}</span>
+            <span className="card-title">Trade Signal</span>
+            <span className={`signal-direction ${signal?.direction?.toLowerCase() || 'neutral'}`}>
+              {signal?.direction || 'HOLD'}
+            </span>
           </div>
-          <div className="card-value">{currentSignal.entry}</div>
-          <div className="card-subtitle">Confidence: {currentSignal.confidence}%</div>
-          <div style={{ marginTop: '16px', display: 'flex', gap: '16px' }}>
-            <div><div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Stop Loss</div><div style={{ fontWeight: '600' }}>{currentSignal.stopLoss}</div></div>
-            <div><div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Take Profit</div><div style={{ fontWeight: '600' }}>{currentSignal.takeProfit}</div></div>
-            <div><div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Phase</div><span className={`phase-badge ${currentSignal.phase}`}>{currentSignal.phase}</span></div>
-          </div>
+          {signal && signal.direction !== 'HOLD' ? (
+            <>
+              <div className="card-value">{signal.entry.toFixed(5)}</div>
+              <div className="card-subtitle">Confidence: {(signal.confidence * 100).toFixed(0)}%</div>
+              <div style={{ marginTop: '16px', display: 'flex', gap: '16px' }}>
+                <div><div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Stop Loss</div><div style={{ fontWeight: '600', color: 'var(--accent-red)' }}>{signal.stopLoss.toFixed(5)}</div></div>
+                <div><div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Take Profit</div><div style={{ fontWeight: '600', color: 'var(--accent-green)' }}>{signal.takeProfit.toFixed(5)}</div></div>
+                <div><div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>R:R</div><div style={{ fontWeight: '600' }}>1:{signal.riskReward}</div></div>
+              </div>
+              <button onClick={openPosition} style={{ marginTop: '16px', width: '100%', padding: '12px', background: 'var(--accent-green)', border: 'none', borderRadius: '8px', color: '#000', fontWeight: '600', cursor: 'pointer' }}>
+                📝 OPEN POSITION (PAPER)
+              </button>
+            </>
+          ) : (
+            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              No clear signal - Waiting for alignment
+            </div>
+          )}
         </div>
 
-        <div className="card" style={{ gridColumn: '1 / -1' }}>
-          <div className="card-header"><span className="card-title">Recent Trades</span></div>
-          <div className="trade-list">
-            {trades.map(trade => (
-              <div key={trade.id} className="trade-item">
-                <div className="trade-info">
-                  <div className="trade-pair">
-                    {trade.pair.replace('_', '/')} 
-                    <span className={`signal-direction ${trade.direction.toLowerCase()}`} style={{ marginLeft: '8px', fontSize: '11px', padding: '2px 8px' }}>{trade.direction}</span>
-                  </div>
-                  <div className="trade-time">{formatDate(trade.timestamp)} {trade.phase}</div>
-                  <div className="trade-reason">{trade.reason}</div>
-                </div>
-                <div className="trade-result">
-                  <div className={`trade-pnl ${trade.pnl >= 0 ? 'positive' : 'negative'}`}>{trade.pnl >= 0 ? '+' : ''}{trade.pnl}</div>
-                </div>
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Signal Reasoning</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {signal?.reasons.map((reason, i) => (
+              <div key={i} style={{ display: 'flex', gap: '10px', padding: '8px', background: 'var(--bg-secondary)', borderRadius: '6px' }}>
+                <span style={{ color: 'var(--accent-blue)', fontWeight: '600' }}>{i + 1}.</span>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{reason}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
+      {positions.length > 0 && (
+        <div className="card" style={{ marginTop: '24px' }}>
+          <div className="card-header">
+            <span className="card-title">Open Positions ({positions.length})</span>
+          </div>
+          <div className="trade-list">
+            {positions.map(pos => (
+              <div key={pos.id} className="trade-item">
+                <div className="trade-info">
+                  <div className="trade-pair">
+                    {pos.pair.replace('_', '/')} 
+                    <span className={`signal-direction ${pos.direction.toLowerCase()}`} style={{ marginLeft: '8px', fontSize: '11px', padding: '2px 8px' }}>{pos.direction}</span>
+                  </div>
+                  <div className="trade-time">Entry: {pos.entry.toFixed(5)} | SL: {pos.sl.toFixed(5)} | TP: {pos.tp.toFixed(5)}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div className={`trade-pnl ${pos.pnl >= 0 ? 'positive' : 'negative'}`} style={{ fontSize: '16px' }}>
+                    {pos.pnl >= 0 ? '+' : ''}{pos.pnl.toFixed(0)}
+                  </div>
+                  <button onClick={() => closePosition(pos.id)} style={{ padding: '8px 16px', background: 'var(--accent-red)', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px' }}>
+                    CLOSE
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tradeHistory.length > 0 && (
+        <div className="card" style={{ marginTop: '24px' }}>
+          <div className="card-header">
+            <span className="card-title">Trade History ({tradeHistory.length} trades)</span>
+          </div>
+          <div className="trade-list">
+            {tradeHistory.map(trade => (
+              <div key={trade.id} className="trade-item">
+                <div className="trade-info">
+                  <div className="trade-pair">
+                    {trade.pair.replace('_', '/')} 
+                    <span className={`signal-direction ${trade.direction.toLowerCase()}`} style={{ marginLeft: '8px', fontSize: '11px', padding: '2px 8px' }}>{trade.direction}</span>
+                    <span style={{ marginLeft: '8px', padding: '2px 8px', background: trade.outcome === 'WIN' ? 'var(--success-bg)' : trade.outcome === 'LOSS' ? 'var(--error-bg)' : 'var(--warning-bg)', borderRadius: '4px', fontSize: '11px' }}>{trade.outcome}</span>
+                  </div>
+                  <div className="trade-time">{new Date(trade.opened).toLocaleString()} → {new Date(trade.closed).toLocaleString()}</div>
+                  <div className="trade-reason">{trade.reason}</div>
+                </div>
+                <div className={`trade-pnl ${trade.pnl >= 0 ? 'positive' : 'negative'}`}>
+                  {trade.pnl >= 0 ? '+' : ''}{trade.pnl.toFixed(0)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <footer style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '12px', borderTop: '1px solid var(--border-color)', marginTop: '32px' }}>
-        <p>Wyckoff + VPA Trading System</p>
+        <p>Wyckoff + VPA Paper Trading | Risk Management: 1% per trade | R:R 1:2</p>
       </footer>
     </div>
   );
