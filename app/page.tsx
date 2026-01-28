@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 // API endpoint - update after deploying worker
-const API_URL = 'https://your-worker.your-subdomain.workers.dev';
+const API_URL = 'https://trading-api.wnrpv6pdgc.workers.dev';
 
 // Common forex pairs
 const FOREX_PAIRS = [
