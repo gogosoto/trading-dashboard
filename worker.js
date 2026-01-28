@@ -61,7 +61,7 @@ export default {
         }
 
         const oandaData = await response.json();
-        const candles = oandaData.candles.map((c: any) => ({
+        const candles = oandaData.candles.map((c) => ({
           time: c.time,
           open: parseFloat(c.mid.o),
           high: parseFloat(c.mid.h),
@@ -78,10 +78,10 @@ export default {
           sample: false
         }), { headers });
 
-      } catch (error: any) {
+      } catch (error) {
         // Fall back to sample data on error
         return new Response(JSON.stringify({
-          error: error.message,
+          error: String(error),
           pair,
           sample: true,
           data: generateSampleCandles(pair, count)
