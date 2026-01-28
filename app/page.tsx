@@ -175,14 +175,14 @@ function analyzeQuarterPoints(candles: Candle[]) {
   });
 
   // Remove duplicates
-  const uniqueAligned = [...new Set(alignedPoints)];
+  const uniqueAligned = Array.from(new Set(alignedPoints));
 
   // Determine strength
   const strength = uniqueAligned.length >= 3 ? "STRONG" :
                    uniqueAligned.length >= 2 ? "MODERATE" : "WEAK";
 
   return {
-    quarterlyPoints: [...new Set(quarterlyPoints)],
+    quarterlyPoints: Array.from(new Set(quarterlyPoints)),
     fibLevels,
     alignedPoints: uniqueAligned,
     strength
