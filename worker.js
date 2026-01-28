@@ -104,7 +104,7 @@ export default {
 };
 
 // Generate sample candles when OANDA is not configured
-function generateSampleCandles(pair: string, count: number) {
+function generateSampleCandles(pair, count) {
   const data = [];
   let price = getBasePrice(pair);
   const now = new Date();
@@ -135,8 +135,8 @@ function generateSampleCandles(pair: string, count: number) {
   return data;
 }
 
-function getBasePrice(pair: string): number {
-  const prices: Record<string, number> = {
+function getBasePrice(pair) {
+  const prices = {
     'EUR_USD': 1.0850, 'GBP_USD': 1.2700, 'USD_JPY': 156.50,
     'USD_CHF': 0.8850, 'AUD_USD': 0.6550, 'USD_CAD': 1.3650,
     'NZD_USD': 0.6050, 'EUR_GBP': 0.8550, 'EUR_JPY': 169.80,
@@ -150,6 +150,6 @@ function getBasePrice(pair: string): number {
   return prices[pair] || 1.0;
 }
 
-function getDecimals(pair: string): number {
+function getDecimals(pair) {
   return pair.includes('JPY') ? 3 : 5;
 }
