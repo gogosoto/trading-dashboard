@@ -703,4 +703,89 @@ export default function Dashboard() {
           <span><span style={{ color: "var(--accent-green)" }}>┄┄┄</span> Support</span>
           <span><span style={{ color: "#ff4757" }}>┄┄┄</span> Resistance</span>
           <span><span style={{ color: "#ffd43b" }}>━━</span> Entry</span>
-          <span><span style={{ color: "#5c7cfa
+          <span><span style={{ color: "#5c7cfa" }}>··</span> Fib Levels</span>
+          <span><span style={{ color: "#ffd43b" }}>--</span> QP Aligned</span>
+        </div>
+      </div>
+
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <div className={"card signal-card " + (signal?.direction === "BUY" ? "buy" : signal?.direction === "SELL" ? "sell" : "neutral")}>
+          <div className="card-header">
+            <span className="card-title">Trade Signal</span>
+            <span className={"signal-direction " + (signal?.direction?.toLowerCase() || "neutral")}>{signal?.direction || "HOLD"}</span>
+          </div>
+          {signal && signal.direction !== "HOLD" ? (
+            <>
+              <div className="card-value">{signal.entry.toFixed(5)}</div>
+              <div className="card-subtitle">Confidence: {(signal.confidence * 100).toFixed(0)}%</div>
+              <div style={{ marginTop: "16px", display: "flex", gap: "16px" }}>
+                <div><div style={{ fontSize: "11px", color: "var(--text-muted)" }}>Stop Loss</div><div style={{ fontWeight: "600", color: "var(--accent-red)" }}>{signal.stopLoss.toFixed(5)}</div></div>
+                <div><div style={{ fontSize: "11px", color: "var(--text-muted)" }}>Take Profit</div><div style={{ fontWeight: "600", color: "var(--accent-green)" }}>{signal.takeProfit.toFixed(5)}</div></div>
+                <div><div style={{ fontSize: "11px", color: "var(--text-muted)" }}>R:R</div><div style={{ fontWeight: "600" }}>1:{signal.riskReward}</div></div>
+              </div>
+              <button onClick={openPosition} style={{ marginTop: "16px", width: "100%", padding: "12px", background: "var(--accent-green)", border: "none", borderRadius: "8px", color: "#000", fontWeight: "600", cursor: "pointer" }}>📝 OPEN POSITION (PAPER)</button>
+            </>
+          ) : (
+            <div style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)" }}>No signal - Waiting for alignment</div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-header"><span className="card-title">Signal Reasoning</span></div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {signal?.reasons.map((reason, i) => (
+              <div key={i} style={{ display: "flex", gap: "10px", padding: "8px", background: "var(--bg-secondary)", borderRadius: "6px" }}>
+                <span style={{ color: "var(--accent-blue)", fontWeight: "600" }}>{i + 1}.</span>
+                <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>{reason}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {positions.length > 0 && (
+        <div className="card" style={{ marginTop: "24px" }}>
+          <div className="card-header"><span className="card-title">Open Positions ({positions.length})</span></div>
+          <div className="trade-list">
+            {positions.map(pos => (
+              <div key={pos.id} className="trade-item">
+                <div className="trade-info">
+                  <div className="trade-pair">
+                    {pos.pair.replace("_", "/")}
+                    <span className={"signal-direction " + pos.direction.toLowerCase()} style={{ marginLeft: "8px", fontSize: "11px", padding: "2px 8px" }}>{pos.direction}</span>
+                  </div>
+                  <div className="trade-time">Entry: {pos.entry.toFixed(5)} | SL: {pos.sl.toFixed(5)} | TP: {pos.tp.toFixed(5)}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                  <div className={"trade-pnl " + (pos.pnl >= 0 ? "positive" : "negative")} style={{ fontSize: "16px" }}>{pos.pnl >= 0 ? "+" : ""}{pos.pnl.toFixed(0)}</div>
+                  <button onClick={() => closePosition(pos.id)} style={{ padding: "8px 16px", background: "var(--accent-red)", border: "none", borderRadius: "6px", color: "#fff", cursor: "pointer" }}>Close</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tradeHistory.length > 0 && (
+        <div className="card" style={{ marginTop: "24px" }}>
+          <div className="card-header"><span className="card-title">Trade History ({tradeHistory.length})</span></div>
+          <div className="trade-list">
+            {tradeHistory.slice(0, 10).map(trade => (
+              <div key={trade.id} className="trade-item">
+                <div className="trade-info">
+                  <div className="trade-pair">
+                    {trade.pair.replace("_", "/")}
+                    <span className={"signal-direction " + trade.direction.toLowerCase()} style={{ marginLeft: "8px", fontSize: "11px", padding: "2px 8px" }}>{trade.direction}</span>
+                    <span style={{ marginLeft: "8px", fontSize: "11px", padding: "2px 8px", background: trade.outcome === "WIN" ? "var(--success-bg)" : trade.outcome === "LOSS" ? "var(--danger-bg)" : "var(--warning-bg)", borderRadius: "4px" }}>{trade.outcome}</span>
+                  </div>
+                  <div className="trade-time">{new Date(trade.opened).toLocaleString()} - {new Date(trade.closed).toLocaleString()}</div>
+                </div>
+                <div className={"trade-pnl " + (trade.pnl >= 0 ? "positive" : "negative")}>{trade.pnl >= 0 ? "+" : ""}{trade.pnl.toFixed(0)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
