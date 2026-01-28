@@ -1,5 +1,7 @@
 # Wyckoff + VPA Trading Dashboard
 
+**Last Updated:** 2026-01-28
+
 A beautiful, modern trading dashboard for the pure VPA + Wyckoff trading system with multi-timeframe analysis and confidence scoring.
 
 ![Dashboard Preview](docs/dashboard-preview.png)
