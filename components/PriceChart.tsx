@@ -18,6 +18,9 @@ interface PriceChartProps {
   signalDirection?: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const lightweightCharts: any;
+
 export default function PriceChart({ 
   data = [], 
   supportLine, 
@@ -28,19 +31,18 @@ export default function PriceChart({
 }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
     
-    // Dynamic import to avoid SSR issues
+    // Dynamic import
     import('lightweight-charts').then((chartModule) => {
-      const createChart = chartModule.createChart;
-      const ColorType = chartModule.ColorType;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const createChart = (chartModule as any).createChart;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ColorType = (chartModule as any).ColorType;
       
       if (!containerRef.current) return;
-      
-      setLoaded(true);
       
       try {
         const chart = createChart(containerRef.current, {
@@ -56,7 +58,8 @@ export default function PriceChart({
           height: 400,
         });
 
-        const candleSeries = chart.addCandlestickSeries({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const candleSeries = (chart as any).addCandlestickSeries({
           upColor: '#00d4aa',
           downColor: '#ff4757',
           borderUpColor: '#00d4aa',
@@ -67,7 +70,7 @@ export default function PriceChart({
 
         if (data.length > 0) {
           const candleData = data.map(d => ({
-            time: d.time.split(' ')[0] as any,
+            time: d.time.split(' ')[0],
             open: d.open,
             high: d.high,
             low: d.low,
@@ -77,43 +80,46 @@ export default function PriceChart({
         }
 
         if (supportLine) {
-          const lineSeries = chart.addLineSeries({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const lineSeries = (chart as any).addLineSeries({
             color: '#00d4aa',
             lineWidth: 2,
             lineStyle: 2,
           });
           if (data.length > 0) {
             lineSeries.setData([
-              { time: data[0].time.split(' ')[0] as any, value: supportLine },
-              { time: data[data.length - 1].time.split(' ')[0] as any, value: supportLine },
+              { time: data[0].time.split(' ')[0], value: supportLine },
+              { time: data[data.length - 1].time.split(' ')[0], value: supportLine },
             ]);
           }
         }
 
         if (entryPrice) {
-          const lineSeries = chart.addLineSeries({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const lineSeries = (chart as any).addLineSeries({
             color: '#ffd43b',
             lineWidth: 2,
             lineStyle: 0,
           });
           if (data.length > 0) {
             lineSeries.setData([
-              { time: data[0].time.split(' ')[0] as any, value: entryPrice },
-              { time: data[data.length - 1].time.split(' ')[0] as any, value: entryPrice },
+              { time: data[0].time.split(' ')[0], value: entryPrice },
+              { time: data[data.length - 1].time.split(' ')[0], value: entryPrice },
             ]);
           }
         }
 
         if (takeProfit) {
-          const lineSeries = chart.addLineSeries({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const lineSeries = (chart as any).addLineSeries({
             color: '#5c7cfa',
             lineWidth: 2,
             lineStyle: 3,
           });
           if (data.length > 0) {
             lineSeries.setData([
-              { time: data[0].time.split(' ')[0] as any, value: takeProfit },
-              { time: data[data.length - 1].time.split(' ')[0] as any, value: takeProfit },
+              { time: data[0].time.split(' ')[0], value: takeProfit },
+              { time: data[data.length - 1].time.split(' ')[0], value: takeProfit },
             ]);
           }
         }
